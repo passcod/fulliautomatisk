@@ -214,6 +214,7 @@ fn main() -> MainResult {
         }
     });
 
+    dbtx.send(true).expect("Internal communication error");
     db.join().unwrap();
     http.join().unwrap();
     fs.join().unwrap();

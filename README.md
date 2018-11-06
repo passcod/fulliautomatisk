@@ -16,6 +16,13 @@ Asterisk server.
    - Think: call forwarding settings
    - defaults to reading from `/var/lib/asterisk/astdb.sqlite3`
 
+Why this and not an Asterisk API?
+
+ - Can handle really old Asterisks that don't have the right APIs
+ - Doesn't need to reload configuration to change settings
+ - Pushes changes rather than having to pull them
+ - Can be very reactive (instant notice for changes)
+
 ```
 USAGE:
     fulliautomatisk [OPTIONS] <URL>
@@ -49,6 +56,13 @@ Payloads look like:
     ],
 }
 ```
+
+Also:
+
+ - Will re-read the entire state from DB every 10 minutes or so, to catch
+   anything that might have been missed.
+ - You can trigger a re-read manually by sending the SIGUSR1 signal.
+ - When it starts it sends a full state, which will also have a full changes array.
 
 Needed to build on Ubuntu:
 
