@@ -1,0 +1,5 @@
+/target
+/fulliautomatisk
+**/*.rs.bk
+*.sqlite3
+*.db
