@@ -101,7 +101,7 @@ fn main() -> MainResult {
         (about: "Monitors an Asterisk internal database for changes")
         (@arg ASTDB: -d --db +takes_value "Sets a custom location for the astdb file")
         (@arg FILTER: -f --filter +takes_value "Regex filter of keys to watch")
-        (@arg URL: +required "URL to deliver payloads to")
+        (@arg URL: +required "URL to deliver payloads to (JSON via POST)")
     ).get_matches();
 
     let url: String = cli.value_of("URL").unwrap().into();
@@ -136,7 +136,18 @@ fn main() -> MainResult {
 
             let diff = compare_state(&state, &new_state);
             if diff.len() > 0 {
-                println!("{} [{}] Change detected: {:?}", ts(), id(), diff);
+                let mut a = 0;
+                let mut r = 0;
+                let mut m = 0;
+                for dif in diff.iter() {
+                    match dif {
+                        Change::Added(_, _) => { a += 1; },
+                        Change::Removed(_) => { r += 1; },
+                        Change::Modified(_, _) => { m += 1; },
+                    }
+                }
+
+                println!("{} [{}] Change detected: +{}, -{}, ~{}", ts(), id(), a, r, m);
 
                 if full {
                     cutx.send(json!({
