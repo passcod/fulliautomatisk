@@ -51,7 +51,7 @@ Payloads look like:
     "changes": [
       {"Modified": ["key", "new value"]},
       {"Added": ["key", "value"]},
-      {"Removed": ["key"]},
+      {"Removed": "key"},
       ...
     ],
 }
