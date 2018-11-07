@@ -8,6 +8,7 @@ Asterisk server.
    - Certification verification is disabled
    - Request timeout is set to 5 seconds
    - It needs to run on the Asterisk box
+   - Single-binary daemon that doesn't need extra dependencies
  - **safely**:
    - It opens a read-only connection to SQLite
    - It does not write anywhere
