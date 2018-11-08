@@ -135,7 +135,7 @@ fn main() -> MainResult {
             };
 
             let diff = compare_state(&state, &new_state);
-            if diff.len() > 0 {
+            if full || diff.len() > 0 {
                 let mut a = 0;
                 let mut r = 0;
                 let mut m = 0;
@@ -177,7 +177,7 @@ fn main() -> MainResult {
 
         loop {
             let json = curx.recv().expect("Internal communication error");
-            match client.post(&url).body(format!("{}", json)).send() {
+            match client.post(&url).json(&json).send() {
                 Err(e) => println!("Failed to send HTTP notice: {:?}", e),
                 Ok(_) => {},
             }
@@ -207,6 +207,7 @@ fn main() -> MainResult {
     // Watch signal (USR1) for full-reload, and also do a full-reload ~every ten minutes
     let sigdbtx = dbtx.clone();
     let sig = thread::spawn(move || {
+        println!("{} [{}] Starting timer and USR1 trap", ts(), id());
         loop {
             let timeout = Instant::now() + Duration::from_secs(600);
             Trap::trap(&[SIGUSR1]).wait(timeout);
