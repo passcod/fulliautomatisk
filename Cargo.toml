@@ -1,6 +1,6 @@
 [package]
 name = "fulliautomatisk"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Félix Saparelli <felix@passcod.name>"]
 description = "Asterisk DB change reporter"
 
