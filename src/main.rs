@@ -17,8 +17,8 @@ extern crate uuid;
 
 use notify::{Op, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
-use rusqlite::{Connection, NO_PARAMS, OpenFlags};
-use signal::{Signal::SIGUSR1, trap::Trap};
+use rusqlite::{Connection, OpenFlags, NO_PARAMS};
+use signal::{trap::Trap, Signal::SIGUSR1};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::mpsc::channel;
 use std::thread;
@@ -38,19 +38,18 @@ type State = BTreeMap<String, String>;
 fn read_state(conn: &Connection, filter: &Option<Regex>) -> rusqlite::Result<State> {
     let mut fetch = conn.prepare_cached("SELECT key, value FROM astdb")?;
 
-    let iter = fetch.query_map(
-        NO_PARAMS,
-        |row| -> (String, String) { (row.get(0), row.get(1)) }
-    )?;
+    let iter = fetch.query_map(NO_PARAMS, |row| -> (String, String) {
+        (row.get(0), row.get(1))
+    })?;
 
     let mut state = BTreeMap::new();
     for ast in iter {
         let a = ast?;
         match filter {
-            None => {},
+            None => {}
             Some(r) => if !r.is_match(&a.0) {
                 continue;
-            }
+            },
         }
 
         state.insert(a.0, a.1);
@@ -66,7 +65,9 @@ fn compare_state(initial: &State, current: &State) -> Vec<Change> {
     for (key, ival) in initial.iter() {
         seen.insert(key);
         match current.get(key) {
-            None => { changes.push(Change::Removed(key.clone())); },
+            None => {
+                changes.push(Change::Removed(key.clone()));
+            }
             Some(cval) => if ival != cval {
                 changes.push(Change::Modified(key.clone(), cval.clone()));
             },
@@ -105,14 +106,21 @@ fn main() -> MainResult {
     ).get_matches();
 
     let url: String = cli.value_of("URL").unwrap().into();
-    let path = cli.value_of("ASTDB").unwrap_or("/var/lib/asterisk/astdb.sqlite3");
+    let path = cli
+        .value_of("ASTDB")
+        .unwrap_or("/var/lib/asterisk/astdb.sqlite3");
     let filter = match cli.value_of("FILTER") {
         None => None,
         Some(f) => Some(Regex::new(f)?),
     };
 
     let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-    println!("{} [{}] Read-only connection opened to {}", ts(), id(), path);
+    println!(
+        "{} [{}] Read-only connection opened to {}",
+        ts(),
+        id(),
+        path
+    );
 
     let mut state: State = BTreeMap::new(); //read_state(&conn, &filter)?;
     println!("{} [{}] Fetched initial state", ts(), id());
@@ -122,49 +130,60 @@ fn main() -> MainResult {
 
     // Fetch changes from DB
     let (dbtx, dbrx) = channel();
-    let db = thread::spawn(move || {
-        loop {
-            let full = dbrx.recv().expect("Internal communication error");
+    let db = thread::spawn(move || loop {
+        let full = dbrx.recv().expect("Internal communication error");
 
-            let new_state = match read_state(&conn, &filter) {
-                Ok(s) => s,
-                Err(e) => {
-                    println!("Error reading state, ignoring\n{:?}", e);
-                    continue;
-                }
-            };
+        let new_state = match read_state(&conn, &filter) {
+            Ok(s) => s,
+            Err(e) => {
+                println!("Error reading state, ignoring\n{:?}", e);
+                continue;
+            }
+        };
 
-            let diff = compare_state(&state, &new_state);
-            if full || diff.len() > 0 {
-                let mut a = 0;
-                let mut r = 0;
-                let mut m = 0;
-                for dif in diff.iter() {
-                    match dif {
-                        Change::Added(_, _) => { a += 1; },
-                        Change::Removed(_) => { r += 1; },
-                        Change::Modified(_, _) => { m += 1; },
+        let diff = compare_state(&state, &new_state);
+        if full || diff.len() > 0 {
+            let mut a = 0;
+            let mut r = 0;
+            let mut m = 0;
+            for dif in diff.iter() {
+                match dif {
+                    Change::Added(_, _) => {
+                        a += 1;
+                    }
+                    Change::Removed(_) => {
+                        r += 1;
+                    }
+                    Change::Modified(_, _) => {
+                        m += 1;
                     }
                 }
+            }
 
-                println!("{} [{}] Change detected: +{}, -{}, ~{}", ts(), id(), a, r, m);
+            println!(
+                "{} [{}] Change detected: +{}, -{}, ~{}",
+                ts(),
+                id(),
+                a,
+                r,
+                m
+            );
 
-                if full {
-                    cutx.send(json!({
+            if full {
+                cutx.send(json!({
                         "instance": id(),
                         "full_state": new_state,
                         "changes": diff
                     })).expect("Internal communication error");
-                } else {
-                    cutx.send(json!({
+            } else {
+                cutx.send(json!({
                         "instance": id(),
                         "changes": diff
                     })).expect("Internal communication error");
-                }
             }
-
-            state = new_state;
         }
+
+        state = new_state;
     });
 
     // Send changes through http
@@ -173,13 +192,14 @@ fn main() -> MainResult {
             .gzip(false)
             .timeout(Duration::from_secs(5))
             .danger_accept_invalid_certs(true)
-            .build().expect("HTTP client failed to initialise");
+            .build()
+            .expect("HTTP client failed to initialise");
 
         loop {
             let json = curx.recv().expect("Internal communication error");
             match client.post(&url).json(&json).send() {
                 Err(e) => println!("Failed to send HTTP notice: {:?}", e),
-                Ok(_) => {},
+                Ok(_) => {}
             }
         }
     });
@@ -188,19 +208,25 @@ fn main() -> MainResult {
     let (fstx, fsrx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new_raw(fstx)?;
     watcher.watch(path, RecursiveMode::NonRecursive)?; // it's a file anyway
-    println!("{} [{}] Watching the database through filesystem", ts(), id());
+    println!(
+        "{} [{}] Watching the database through filesystem",
+        ts(),
+        id()
+    );
 
     // Watch DB for changes
-    let fs = thread::spawn(move || {
-        loop {
-            match fsrx.recv() {
-                Ok(event) => {
-                    if event.op.is_err() { continue; }
-                    if !event.op.unwrap().contains(Op::WRITE) { continue; }
-                    fsdbtx.send(false).expect("Internal communication error");
-                },
-                Err(e) => println!("{} [{}] Watcher error: {:?}", ts(), id(), e),
+    let fs = thread::spawn(move || loop {
+        match fsrx.recv() {
+            Ok(event) => {
+                if event.op.is_err() {
+                    continue;
+                }
+                if !event.op.unwrap().contains(Op::WRITE) {
+                    continue;
+                }
+                fsdbtx.send(false).expect("Internal communication error");
             }
+            Err(e) => println!("{} [{}] Watcher error: {:?}", ts(), id(), e),
         }
     });
 
