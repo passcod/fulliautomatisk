@@ -1,23 +1,11 @@
 #[macro_use]
 extern crate clap;
-#[macro_use]
-extern crate lazy_static;
-extern crate notify;
-extern crate regex;
-extern crate reqwest;
-extern crate rusqlite;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
-extern crate signal;
-extern crate time;
-extern crate uuid;
 
 use notify::{Op, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use rusqlite::{Connection, OpenFlags, NO_PARAMS};
+use serde::Serialize;
+use serde_json::json;
 use signal::{trap::Trap, Signal::SIGUSR1};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::mpsc::channel;
@@ -38,8 +26,8 @@ type State = BTreeMap<String, String>;
 fn read_state(conn: &Connection, filter: &Option<Regex>) -> rusqlite::Result<State> {
     let mut fetch = conn.prepare_cached("SELECT key, value FROM astdb")?;
 
-    let iter = fetch.query_map(NO_PARAMS, |row| -> (String, String) {
-        (row.get(0), row.get(1))
+    let iter = fetch.query_map(NO_PARAMS, |row| -> rusqlite::Result<(String, String)> {
+        Ok((row.get(0)?, row.get(1)?))
     })?;
 
     let mut state = BTreeMap::new();
@@ -88,7 +76,7 @@ fn ts() -> String {
 }
 
 fn id() -> &'static str {
-    lazy_static! {
+    lazy_static::lazy_static! {
         static ref ID: String = format!("{}", Uuid::new_v4());
     }
 
@@ -96,7 +84,7 @@ fn id() -> &'static str {
 }
 
 fn main() -> MainResult {
-    let cli = clap_app!(fulliautomatisk =>
+    let cli = clap::clap_app!(fulliautomatisk =>
         (version: env!("CARGO_PKG_VERSION"))
         (author: env!("CARGO_PKG_AUTHORS"))
         (about: "Monitors an Asterisk internal database for changes")
